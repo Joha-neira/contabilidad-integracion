@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
-from conexionbd import getConn
+from conexionbd import getConn, cx_Oracle
 from models import Venta
+
 
 
 
@@ -14,6 +15,8 @@ def holaMundo():
 
 #prueba objeto venta
 venta1 = Venta(4123,'18841584-9','18/05/1994',339000,'factura.pdf')
+
+
 #obtener id boleta desde la base de datos
 @app.route('/idBoleta',methods=['GET'])
 def getIdBoleta():
@@ -42,7 +45,21 @@ def getBoleta(idBoleta):
 #registrar nueva boleta en BD
 @app.route('/boleta', methods=['POST'])
 def addBoleta():
+    conn=getConn()
+    crs = conn.cursor()
+    nroBoleta= request.json['boleta']
+    rutcliente = request.json['rutCliente'] 
+    fecha = request.json['fecha']
+    totalneto = request.json['totalNeto'] 
+    idtipopago  = request.json['tipoPago']
+    sql = """INSERT INTO ventas (nroboleta,rutcliente,fecha,totalneto,idtipopago)
+          VALUES (:nroboleta,:rutcliente,TO_DATE(:fecha,'YYYY-MM-DD'),:totalneto,:idtipopago)"""
+    crs.execute("""INSERT INTO TIPOPAGO (idtipopago ,descripcion) 
+                    VALUES(:id, :des )""",id=222,des="efectivo")
+    crs.execute(sql,[nroBoleta,rutcliente,fecha,totalneto,idtipopago])
     print(request.json)
+    conn.commit()
+    conn.close()
     return 'received'
 
 #registrar nueva orden de compra en BD

@@ -12,7 +12,7 @@ else:
     cnx = True
     cursor = conn.cursor()
     #Execute Query
-    cursor.execute("select table_name from user_tables")
+    cursor.execute("SELECT * FROM ventas ")
     result = cursor.fetchall()
 
     #Fetch results
@@ -21,6 +21,7 @@ else:
 
 def getConn():
     if cnx ==True:
+        conn = cx_Oracle.connect(connstr)
         return conn
     return
 
