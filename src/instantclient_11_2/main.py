@@ -6,8 +6,7 @@ from models import Venta
 
 
 app = Flask(__name__)
-if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=5000)
+
 
 #probando primer endpoint
 @app.route('/hola')
@@ -25,7 +24,7 @@ venta1 = Venta(4123,'18841584-9','18/05/1994',339000,'factura.pdf',11)
 def getIdBoleta():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT boleta_seq.currval FROM DUAL")
+    crs.execute("SELECT last_number FROM user_sequences where sequence_name='BOLETA_SEQ'")
     result = crs.fetchall()
     conn.close()
     return jsonify({'Id boleta': result})
@@ -36,7 +35,7 @@ def getIdBoleta():
 def getIdOrdenCompra():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT ordencompra_seq.currval FROM DUAL")
+    crs.execute("SELECT last_number FROM user_sequences where sequence_name='ORDENCOMPRA_SEQ'")
     result = crs.fetchall()
     conn.close()
     return jsonify({'Id Orden de compra': result})
@@ -47,7 +46,7 @@ def getIdOrdenCompra():
 def getIdNotaCredito():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT notacredito_seq.currval FROM DUAL")
+    crs.execute("SELECT last_number FROM user_sequences where sequence_name='NOTACREDITO_SEQ'")
     result = crs.fetchall()
     conn.close()
     return jsonify({'Id Nota de Credito': result})
@@ -108,3 +107,5 @@ def addCompra():
     print(request.json)
     return 'received'
 
+if __name__ == '__main__':
+    app.run(debug=True, host='127.0.0.1', port=5000)
