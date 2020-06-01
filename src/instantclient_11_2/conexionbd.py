@@ -20,7 +20,7 @@ else:
     conn.close()
 
 def getConn():
-    if cnx ==True:
+    if cnx == True:
         conn = cx_Oracle.connect(connstr)
         return conn
     return

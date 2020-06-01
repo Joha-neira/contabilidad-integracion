@@ -6,12 +6,14 @@ class Venta:
     fecha: str
     totalNeto: int
     documento: str
-    def __init__(self, nroBoleta, rutCliente, fecha, totalNeto, documento):
+    tipoPago: int
+    def __init__(self, nroBoleta, rutCliente, fecha, totalNeto, documento, tipoPago):
       self.nroBoleta = nroBoleta
       self.rutCliente = rutCliente
       self.fecha = fecha
       self.totalNeto = totalNeto
       self.documento = documento
+      self.tipoPago = tipoPago
 
 
 class OrdenCompra:
