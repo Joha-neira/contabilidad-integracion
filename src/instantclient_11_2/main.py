@@ -98,8 +98,16 @@ def addOrdenCompra():
 #registrar nueva nota de credito en BD
 @app.route('/notaCredito', methods=['POST'])
 def addNotaCredito():
-    print(request.json)
-    return 'received'
+    nroNc = request.json['nroNotaCredito']
+    rutCliente = request.json['rutCliente']
+    fecha = request.json['fecha']
+    totalNeto = request.json['totalNeto']
+    nroBoleta = request.json['nroBoleta']
+    detalleReverso = request.json['detalleReverso']
+    print(detalleReverso['idProducto'])
+    return detalleReverso['motivo']
+    
+    
 
 #registrar nueva compra en BD
 @app.route('/compra', methods=['POST'])
@@ -108,4 +116,4 @@ def addCompra():
     return 'received'
 
 if __name__ == '__main__':
-    app.run(debug=True, host='127.0.0.1', port=80)
+    app.run(debug=True, host='127.0.0.1', port=5000)
