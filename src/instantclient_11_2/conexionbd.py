@@ -8,15 +8,8 @@ try:
 except Exception as e:
     print("No se pudo conectar a la bd. Error: "+str(e))
 else:
-    print("Conexion establecida fuck yeaaaah !")
+    print("Conexion establecida lista para trabajar")
     cnx = True
-    cursor = conn.cursor()
-    #Execute Query
-    cursor.execute("SELECT * FROM ventas ")
-    result = cursor.fetchall()
-
-    #Fetch results
-    print(result)
     conn.close()
 
 def getConn():

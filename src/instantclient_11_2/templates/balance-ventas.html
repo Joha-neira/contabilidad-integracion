@@ -1,0 +1,39 @@
+{% extends "navbar.html" %}
+{% block content %}
+<div class="container">
+  <br>
+    <h1 class="tituloBalance text-center">Balance de ventas</h1><br><br>
+    <a href="" class="btn btn-success">Reporte mensual</a>
+    <br><br><br>
+    <h3>Últimos movimientos</h3>
+    <br>
+    <table class="table">
+      <thead class="thead-light">
+        <tr>
+          <th scope="col">Id boleta</th>
+          <th scope="col">Rut cliente</th>
+          <th scope="col">Tipo de pago</th>
+          <th scope="col">Fecha</th>
+          <th scope="col">Total neto</th>
+          <th scope="col">IVA</th>
+        </tr>
+      </thead>
+      <tbody>
+          {% for boleta in boletas %}
+        <tr >
+          <th scope="row">{{boleta.0}}</th>
+          <td>{{boleta.1}}</td>
+          {% if boleta.4 == 101 %}
+          <td>Efectivo</td>
+          {% else %}
+          <td>Transferencia</td>
+          {% endif %}
+          <td>{{boleta.2}}</td>
+          <td>${{boleta.3}}</td>
+          <td>${{(boleta.3*(0.19))|round|int}}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+{% endblock %}

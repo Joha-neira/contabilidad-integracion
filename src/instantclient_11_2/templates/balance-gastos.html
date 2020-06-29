@@ -1,0 +1,47 @@
+{% extends "navbar.html" %}
+{% block content %}
+<div class="container">
+  {% if gastos|count==0 %}
+  <h5 class="text-justify">No existen gastos para mostrar</h5>
+  {% else %}
+  <br>
+  <h1 class="tituloBalance text-center">Balance de gastos</h1><br><br>
+  <a href="" class="btn btn-success">Reporte mensual</a>
+  <br><br><br>
+  <h3>Últimos movimientos</h3>
+  <br>
+  <table class="table">
+    <thead class="thead-light">
+      <tr>
+        <th scope="col">Nro movimiento</th>
+        <th scope="col">Orden de compra</th>
+        <th scope="col">Factura referencia</th>
+        <th scope="col">Rut proveedor</th>
+        <th scope="col">Fecha</th>
+        <th scope="col">Total neto</th>
+        <th scope="col">IVA</th>
+        <th scope="col">Departamento</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for gasto in gastos %}
+      <tr>
+        <th scope="row">{{gasto.0}}</th>
+        <td>{{gasto.6}}</td>
+        <td>{{gasto.1}}</td>
+        <td>{{gasto.2}}</td>
+        <td>{{gasto.3}}</td>
+        <td>${{gasto.4}}</td>
+        <td>${{(gasto.4*(0.19))|round|int}}</td>
+        {% if gasto.8 == 101 %}
+        <td>Adquisiciones</td>
+        {% else %}
+        <td>Creación de productos</td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+{% endblock %}

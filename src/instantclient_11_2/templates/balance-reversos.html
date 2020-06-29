@@ -1,0 +1,39 @@
+{% extends "navbar.html" %}
+{% block content %}
+<div class="container">
+  {% if reversos|count==0 %}
+  <h5 class="text-justify">No existen reversos para mostrar</h5>
+  {% else %}
+  <br>
+  <h1 class="tituloBalance text-center">Balance de reversos</h1><br><br>
+  <a href="" class="btn btn-success">Reporte mensual</a>
+  <br><br><br>
+  <h3>Últimos movimientos</h3>
+  <br>
+  <table class="table">
+    <thead class="thead-light">
+      <tr>
+        <th scope="col">Nro nota de crédito</th>
+        <th scope="col">Rut cliente</th>
+        <th scope="col">Fecha</th>
+        <th scope="col">Boleta referencia</th>
+        <th scope="col">Total neto</th>
+        <th scope="col">IVA</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for nc in reversos %}
+      <tr>
+        <th scope="row">{{nc.0}}</th>
+        <td>{{nc.1}}</td>
+        <td>{{nc.2}}</td>
+        <td>{{nc.4}}</td>
+        <td>${{nc.3}}</td>
+        <td>${{(nc.3*(0.19))|round|int}}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+  {% endblock %}
