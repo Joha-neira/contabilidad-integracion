@@ -1,0 +1,101 @@
+{% extends "navbar.html" %}
+{% block content %}
+<div class="container">
+  {% if cuentas|count==0 %}
+  <h5 class="text-justify">No existen Balance General para mostrar</h5>
+  {% else %}
+  <br>
+  <h1 class="tituloBalance text-center">Balance General</h1><br>
+  <br>
+  <table class="table">
+    <thead class="thead-light">
+      <tr>
+        <th scope="col">Cuenta</th>
+        <th scope="col">Debe</th>
+        <th scope="col">Haber</th>
+        <th scope="col">Saldo Deudor</th>
+        <th scope="col">Saldo Acreedor</th>
+        <th scope="col">Activos</th>
+        <th scope="col">Pasivos</th>
+        <th scope="col">Perdida</th>
+        <th scope="col">Ganancia</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+      <th scope="row">Activos</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+      </tr>
+      {% for cuenta in cuentas %}
+      {% if cuenta.1=='Activo' %}
+      <tr>
+        <th scope="row">{{cuenta.0}}</th>
+        <td>{{cuenta.2}}</td>
+        <td>{{cuenta.3}}</td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+      {% endif %}
+      {% endfor %}
+      <tr>
+        <th scope="row">Pasivos</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>
+        {% for cuenta in cuentas %}
+        {% if cuenta.1=='Pasivo' %}
+        <tr>
+          <th scope="row">{{cuenta.0}}</th>
+          <td>{{cuenta.2}}</td>
+          <td>{{cuenta.3}}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+        <tr>
+          <th scope="row">Perdidas</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+          </tr>
+          {% for cuenta in cuentas %}
+          {% if cuenta.1=='Perdida' %}
+          <tr>
+            <th scope="row">{{cuenta.0}}</th>
+            <td>{{cuenta.2}}</td>
+            <td>{{cuenta.3}}</td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+            <td></td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+          <tr>
+            <th scope="row">Ganancias</th><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+            </tr>
+            {% for cuenta in cuentas %}
+            {% if cuenta.1=='Ganancia' %}
+            <tr>
+              <th scope="row">{{cuenta.0}}</th>
+              <td>{{cuenta.2}}</td>
+              <td>{{cuenta.3}}</td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+              <td></td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
+  {% endblock %}
