@@ -1,5 +1,4 @@
 from flask import Flask, jsonify, request, render_template, redirect, url_for, session
-from flask_login import LoginManager
 from conexionbd import getConn, cx_Oracle
 from models import Venta
 
@@ -7,6 +6,7 @@ from models import Venta
 
 
 app = Flask(__name__)
+app.config['JSON_SORT_KEYS'] = False
 # app config 
 # login_manager = LoginManager()
 # login_manager.init_app(app)
@@ -78,12 +78,23 @@ def getBoletas():
             tipoPago = "Efectivo"
         else:
             tipoPago = "Transferencia"
+        crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=boleta[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1]
+            }
+            detail = dict
+            details.append(detail)
         dict = {
         "idBoleta": boleta[0],
         "rutCliente": boleta[1],
         "fecha": boleta[2],
         "totalNeto": boleta[3],
         "tipoPago":tipoPago,
+        "detalleVenta": details
         }
         string = 'boleta '+str(boleta[0])
         boletas[string] = dict
@@ -218,14 +229,26 @@ def getNotasCredito():
     result = crs.fetchall()
     notasCredito = {}
     for nc in result:
+        crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=nc[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1],
+                "motivo": detalle[2]
+            }
+            detail = dict
+            details.append(detail)
         dict = {
         "nroNotaCredito": nc[0],
         "rutCliente": nc[1],
         "fecha": nc[2],
         "totalNeto": nc[3],
-        "nroBoleta":nc[4]
+        "nroBoleta":nc[4],
+        "detalleNotaCredito": details
         }
-        string = 'notaCredito'+str(nc[0])
+        string = 'notaCredito '+str(nc[0])
         notasCredito[string] = dict
     return jsonify({"results":notasCredito})
 
@@ -243,6 +266,16 @@ def getGastos():
         else:
             deptoTrabajador = "creacion de productos"
         # tener en cosideracion mas adelante integrar el documento
+        crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=gasto[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1]
+            }
+            detail = dict
+            details.append(detail)
         dict = {
         "nroOperacion": gasto[0],
         "nroFactura": gasto[1],
@@ -251,7 +284,8 @@ def getGastos():
         "totalNeto": gasto[4],
         "codTrabajador":gasto[5],
         "nroOrdenCompra": gasto[6],
-        "departamento": deptoTrabajador
+        "departamento": deptoTrabajador,
+        "detalleCompra": details
         }
         string = 'Operacion '+str(gasto[0])
         gastos[string] = dict
@@ -294,7 +328,19 @@ def home():
 
 @app.route('/libro-diario')
 def libroDiario():
-    return render_template('libro-diario.html')
+    conn=getConn()
+    crs = conn.cursor()
+    crs.execute("""SELECT l.nroasiento, to_char(l.fecha,'dd/mm/yyyy'), l.glosa, t.descripcion, 
+    nvl(l.nrooperacion,0), nvl(l.nronc,0), nvl(l.nroboleta,0) FROM librodiario l join tipooperacion t on l.idtipooperacion=t.idtipooperacion order by 1""")
+    results = crs.fetchall()
+    asientos = []
+    for result in results:
+        crs.execute("SELECT d.debe, d.haber, c.descripcion FROM detalleasiento d join cuentas c on d.idcuenta=c.idcuenta where d.nroasiento=:nroasiento",nroasiento=result[0])
+        detalles=crs.fetchall()
+        res=list(result)
+        res.append(detalles)
+        asientos.append(res)
+    return render_template('libro-diario.html', asientos=asientos)
 
 @app.route('/balance-ventas')
 def balanceVentas():
@@ -322,7 +368,18 @@ def balanceReversos():
     crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY to_char(fecha,'dd/mm/yyyy'),nronc")
     result = crs.fetchall()
     conn.close()
+    print(result)
     return render_template('balance-reversos.html', reversos = result)
+
+@app.route('/balance-general')
+def balanceGeneral():
+    conn=getConn()
+    crs = conn.cursor()
+    crs.execute("SELECT c.descripcion, c.tipocuenta, sum(d.debe), sum(d.haber) from cuentas c join detalleasiento d on c.idcuenta=d.idcuenta group by c.descripcion,c.tipocuenta")
+    result = crs.fetchall()
+    print(result)
+    conn.close()
+    return render_template('balance-general.html', cuentas = result)
 
 @app.route('/logout')
 def logout():
