@@ -1,4 +1,54 @@
 {% extends "navbar.html" %}
 {% block content %}
-libro diario
+<div class="container">
+  {% if asientos|count==0 %}
+  <h5 class="text-justify">No existen Asientos para mostrar</h5>
+  {% else %}
+  <br>
+  <h1 class="tituloBalance text-center">Libro Diario</h1><br>
+  <br>
+  <h3>Últimos movimientos</h3>
+  <br>
+  <table class="table">
+    <thead class="thead-light">
+      <tr>
+        <th scope="col">Nro Asiento</th>
+        <th scope="col">Fecha</th>
+        <th scope="col">Glosa</th>
+        <th scope="col">Cuenta</th>
+        <th scope="col">Debe</th>
+        <th scope="col">Haber</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for asiento in asientos %}
+      <tr>
+        <th scope="row">{{asiento.0}}</th>
+        <td>{{asiento.1}}</td>
+        {% if asiento.3 == 'Venta' %}
+          <td>{{asiento.2}}, Nro Boleta Ref.: {{asiento.6}} </td>
+        {% elif asiento.3 == 'Compra' %}
+          <td>{{asiento.2}}, Nro Operacion Ref.: {{asiento.4}} </td>
+        {% else %}
+          <td>{{asiento.2}}, Nro Nota Credito Ref.: {{asiento.5}} </td>
+        {% endif %}
+        <td></td>
+        <td></td>
+        <td></td>
+      </tr>
+      {% for cuenta in asiento.7 %}
+      <tr>
+        <th scope="row"></th>
+        <td></td>
+        <td></td>
+        <td>{{cuenta.2}}</td>
+        <td>{{cuenta.0}}</td>
+        <td>{{cuenta.1}}</td>
+      </tr>
+      {% endfor %}
+      {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</div>
   {% endblock %}
