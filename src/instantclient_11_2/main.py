@@ -1,16 +1,24 @@
-from flask import Flask, jsonify, request, render_template, redirect, url_for, session
+from flask import Flask, jsonify, request, render_template, redirect, url_for, session, flash
 from flask_login import LoginManager
 from conexionbd import getConn, cx_Oracle
 from models import Venta
-
-
-
+import requests
+import boto3
+import hashlib,hmac,base64
 
 app = Flask(__name__)
 # app config 
 # login_manager = LoginManager()
 # login_manager.init_app(app)
+# SECURITY_ENDPOINT = 'https://oawjeg21mb.execute-api.us-east-1.amazonaws.com/contabilidad'
+USER_POOL_ID = 'us-east-1_NviZ9gz7U'
+CLIENT_ID = '590svotmugpjsu58ljllft8bf3'
+CLIENT_SECRET = 'n969na2slpnqkcnci5k5am3saf8k84bgq5aemnod5lkela36uis'
+
+app.config['JSON_SORT_KEYS'] = False
 app.secret_key = '_5#y2L"F4Q8z]/'
+
+client = boto3.client('cognito-idp')
 
 #probando primer endpoint
 @app.route('/hola')
@@ -78,16 +86,28 @@ def getBoletas():
             tipoPago = "Efectivo"
         else:
             tipoPago = "Transferencia"
+        crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=boleta[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1]
+            }
+            detail = dict
+            details.append(detail)
         dict = {
         "idBoleta": boleta[0],
         "rutCliente": boleta[1],
         "fecha": boleta[2],
         "totalNeto": boleta[3],
         "tipoPago":tipoPago,
+        "detalleVenta": details
         }
         string = 'boleta '+str(boleta[0])
         boletas[string] = dict
     return jsonify({'results':boletas})
+
 
 #obtener boleta unica con su id como parametro
 @app.route('/get-boleta/<int:idBoleta>')
@@ -214,18 +234,30 @@ def addCompra():
 def getNotasCredito():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos")
+    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ordey by nronc")
     result = crs.fetchall()
     notasCredito = {}
     for nc in result:
+        crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=nc[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1],
+                "motivo": detalle[2]
+            }
+            detail = dict
+            details.append(detail)
         dict = {
         "nroNotaCredito": nc[0],
         "rutCliente": nc[1],
         "fecha": nc[2],
         "totalNeto": nc[3],
-        "nroBoleta":nc[4]
+        "nroBoleta":nc[4],
+        "detalleNotaCredito": details
         }
-        string = 'notaCredito'+str(nc[0])
+        string = 'notaCredito '+str(nc[0])
         notasCredito[string] = dict
     return jsonify({"results":notasCredito})
 
@@ -243,6 +275,16 @@ def getGastos():
         else:
             deptoTrabajador = "creacion de productos"
         # tener en cosideracion mas adelante integrar el documento
+        crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=gasto[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1]
+            }
+            detail = dict
+            details.append(detail)
         dict = {
         "nroOperacion": gasto[0],
         "nroFactura": gasto[1],
@@ -251,7 +293,8 @@ def getGastos():
         "totalNeto": gasto[4],
         "codTrabajador":gasto[5],
         "nroOrdenCompra": gasto[6],
-        "departamento": deptoTrabajador
+        "departamento": deptoTrabajador,
+        "detalleCompra": details
         }
         string = 'Operacion '+str(gasto[0])
         gastos[string] = dict
@@ -277,8 +320,40 @@ def getBalancesVentasMensuales():
 @app.route('/login',methods=['GET','POST'])
 def login():
     if request.method == 'POST':
-        session['username'] = request.form['username']
-        return redirect(url_for('home'))
+        username = request.form['username']
+        password = request.form['password']
+        global client
+        if client == None:
+            client = boto3.client('cognito-idp')
+        resp, msg = initiate_auth(username, password)
+    
+        if msg != None:
+            res_auth = {'message': msg, 
+                "error": True, "success": False, "data": None}
+            flash('Nombre de usuario y/o contraseña incorrectos')
+            return redirect(url_for('login'))
+        
+        if resp.get("AuthenticationResult"):
+            res_auth = {'message': "success", 
+                    "error": False, 
+                    "success": True, 
+                    "data": {
+                    "id_token": resp["AuthenticationResult"]["IdToken"],
+                    "refresh_token": resp["AuthenticationResult"]["RefreshToken"],
+                    "access_token": resp["AuthenticationResult"]["AccessToken"],
+                    "expires_in": resp["AuthenticationResult"]["ExpiresIn"],
+                    "token_type": resp["AuthenticationResult"]["TokenType"]
+                    }}
+            session['username'] = username
+            return redirect(url_for('home'))
+        else: #this code block is relevant only when MFA is enabled
+            res_auth = {"error": True, 
+                    "success": False, 
+                    "data": None, "message": None}
+            flash('Nombre de usuario y/o contraseña incorrectos')
+            return render_template('login.html')
+            # session['username'] = request.form['username']
+        # return redirect(url_for('home'))
     return render_template('login.html')
 
 @app.route('/iniciar-sesion', methods=['POST'])
@@ -290,39 +365,116 @@ def home():
     if 'username' in session:
         usuario = session['username']
         return render_template('index.html', nombreUsuario = usuario)
+    flash("Debes iniciar sesion para acceder")
     return redirect(url_for('login'))
 
 @app.route('/libro-diario')
 def libroDiario():
-    return render_template('libro-diario.html')
+    if 'username' in session:
+        conn=getConn()
+        crs = conn.cursor()
+        crs.execute("""SELECT l.nroasiento, to_char(l.fecha,'dd/mm/yyyy'), l.glosa, t.descripcion, 
+        nvl(l.nrooperacion,0), nvl(l.nronc,0), nvl(l.nroboleta,0) FROM librodiario l join tipooperacion t on l.idtipooperacion=t.idtipooperacion order by 1""")
+        results = crs.fetchall()
+        asientos = []
+        for result in results:
+            crs.execute("SELECT d.debe, d.haber, c.descripcion FROM detalleasiento d join cuentas c on d.idcuenta=c.idcuenta where d.nroasiento=:nroasiento",nroasiento=result[0])
+            detalles=crs.fetchall()
+            res=list(result)
+            res.append(detalles)
+            asientos.append(res)
+        conn.close()
+        return render_template('libro-diario.html', asientos=asientos)
+    else:
+        flash("Debes iniciar sesion para acceder")
+        return redirect(url_for('login'))
 
 @app.route('/balance-ventas')
 def balanceVentas():
-    conn=getConn()
-    crs = conn.cursor()
-    crs.execute("SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas ORDER BY to_char(fecha,'dd/mm/yyyy'), nroboleta")
-    result = crs.fetchall()
-    conn.close()
-    return render_template('balance-ventas.html', boletas = result)
+    if 'username' in session:
+        conn=getConn()
+        crs = conn.cursor()
+        crs.execute("SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas ORDER BY to_char(fecha,'dd/mm/yyyy'), nroboleta")
+        result = crs.fetchall()
+        conn.close()
+        return render_template('balance-ventas.html', boletas = result)
+    else:
+        flash("Debes iniciar sesion para acceder")
+        return redirect(url_for('login'))
 
 @app.route('/balance-gastos')
 def balanceGastos():
-    conn=getConn()
-    crs = conn.cursor()
-    crs.execute("""SELECT nrooperacion, nrofactura, rutproveedor, to_char(fecha,'dd/mm/yyyy'), 
-    totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras ORDER BY to_char(fecha,'dd/mm/yyyy'),nrooperacion""")
-    result = crs.fetchall()
-    conn.close()
-    return render_template('balance-gastos.html',gastos = result)
+    if 'username' in session:
+        conn=getConn()
+        crs = conn.cursor()
+        crs.execute("""SELECT nrooperacion, nrofactura, rutproveedor, to_char(fecha,'dd/mm/yyyy'), 
+        totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras ORDER BY to_char(fecha,'dd/mm/yyyy'),nrooperacion""")
+        result = crs.fetchall()
+        conn.close()
+        return render_template('balance-gastos.html',gastos = result)
+    else:
+        flash("Debes iniciar sesion para acceder")
+        return redirect(url_for('login'))
 
 @app.route('/balance-reversos')
 def balanceReversos():
-    conn=getConn()
-    crs = conn.cursor()
-    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY to_char(fecha,'dd/mm/yyyy'),nronc")
-    result = crs.fetchall()
-    conn.close()
-    return render_template('balance-reversos.html', reversos = result)
+    if 'username' in session:
+        conn=getConn()
+        crs = conn.cursor()
+        crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY nronc")
+        results = crs.fetchall()
+        reversos=[]
+        for result in results:
+            crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
+            detalles=crs.fetchall()
+            res=list(result)
+            res.append(detalles)
+            reversos.append(res)
+        conn.close()
+        print(reversos)
+        return render_template('balance-reversos.html', reversos = reversos)
+    else:
+        flash("Debes iniciar sesion para acceder")
+        return redirect(url_for('login'))
+
+@app.route('/balance-general')
+def balanceGeneral():
+    if 'username' in session:
+        conn=getConn()
+        crs = conn.cursor()
+        crs.execute("SELECT c.descripcion, c.tipocuenta, sum(d.debe), sum(d.haber) from cuentas c join detalleasiento d on c.idcuenta=d.idcuenta group by c.descripcion,c.tipocuenta")
+        results = crs.fetchall()
+        cuentas=[]
+        for result in results:
+            res=list(result)
+            if result[2] > result[3]:
+                deudor=result[2]-result[3]
+                acreedor=0
+            elif result[2]<result[3]:
+                deudor=0
+                acreedor=result[3]-result[2]
+            else:
+                deudor=0
+                acreedor=0
+            res.append(deudor)
+            res.append(acreedor)
+            if result[1] == 'Activo' or result[1] == 'Pasivo':
+                res.append(deudor)
+                res.append(acreedor)
+                res.append(0)
+                res.append(0)
+            else:
+                res.append(0)
+                res.append(0)
+                res.append(deudor)
+                res.append(acreedor)
+            cuentas.append(res)
+        print(cuentas)
+        conn.close()
+        return render_template('balance-general.html', cuentas = cuentas)
+    else:
+        flash("Debes iniciar sesion para acceder")
+        return redirect(url_for('login'))
 
 @app.route('/logout')
 def logout():
@@ -330,7 +482,87 @@ def logout():
     session.pop('username', None)
     return redirect(url_for('login'))
 
+# funcion que retorna detalle de productos por id (valor de prueba = "123456789ABCDEFG")
+def get_detalle_producto(id_producto):
+    url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
+    r = requests.get(url_get_producto).json()
+    return r
 
+#funcion que retorna detalle de proveedor segun id (valor de prueba = "PRIMER_RUT")
+def get_detalle_proveedor(id_proveedor):
+    url_get_proveedor = "http://ec2-54-146-107-251.compute-1.amazonaws.com/proveedor/{}/".format(id_proveedor)
+    r = requests.get(url_get_proveedor).json()
+    return r
+
+
+def get_secret_hash(username):
+    msg = username + CLIENT_ID
+    dig = hmac.new(str(CLIENT_SECRET).encode('utf-8'), 
+        msg = str(msg).encode('utf-8'), digestmod=hashlib.sha256).digest()
+    d2 = base64.b64encode(dig).decode()
+    return d2
+    
+def initiate_auth(username, password):
+    client = boto3.client('cognito-idp',region_name='us-east-1')
+    print(client)
+    secret_hash = get_secret_hash(username)
+    print('desde Login_user')
+    print(username)
+    print(password)
+    try:
+        resp = client.initiate_auth(
+                 #UserPoolId=USER_POOL_ID,
+                 ClientId=CLIENT_ID,
+                 #AuthFlow='ADMIN_USER_PASSWORD_AUTH',
+                 AuthFlow='USER_PASSWORD_AUTH',
+                 #AuthFlow='ADMIN_NO_SRP_AUTH',
+                 AuthParameters={
+                     'USERNAME': username,
+                     'SECRET_HASH': secret_hash,
+                     'PASSWORD': password,
+                  },
+                ClientMetadata={
+                  'username': username,
+                  'password': password,
+              })
+    except client.exceptions.NotAuthorizedException as e:
+        print("error {}".format(e))
+        return None, "The username or password is incorrect"
+    except client.exceptions.UserNotConfirmedException:
+        return None, "User is not confirmed"
+    except Exception as e:
+        return None, e._str_()
+    return resp, None
+
+
+def lambda_handler(username,password):
+    global client
+    if client == None:
+        client = boto3.client('cognito-idp')
+    resp, msg = initiate_auth(username, password)
+    
+    if msg != None:
+        return {'message': msg, 
+              "error": True, "success": False, "data": None}
+    
+    if resp.get("AuthenticationResult"):
+        return {'message': "success", 
+                "error": False, 
+                "success": True, 
+                "data": {
+                "id_token": resp["AuthenticationResult"]["IdToken"],
+                "refresh_token": resp["AuthenticationResult"]["RefreshToken"],
+                "access_token": resp["AuthenticationResult"]["AccessToken"],
+                "expires_in": resp["AuthenticationResult"]["ExpiresIn"],
+                "token_type": resp["AuthenticationResult"]["TokenType"]
+                }}
+    else: #this code block is relevant only when MFA is enabled
+        return {"error": True, 
+                "success": False, 
+                "data": None, "message": None}
+
+# r = initiate_auth("johans.neira","Duoc2020.")
+# print(r)
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=5000)
