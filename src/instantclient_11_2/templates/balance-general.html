@@ -1,3 +1,4 @@
+
 {% extends "navbar.html" %}
 {% block content %}
 <div class="container">
@@ -28,15 +29,15 @@
       {% for cuenta in cuentas %}
       {% if cuenta.1=='Activo' %}
       <tr>
-        <th scope="row">{{cuenta.0}}</th>
+        <td scope="row">{{cuenta.0}}</td>
         <td>{{cuenta.2}}</td>
         <td>{{cuenta.3}}</td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
-        <td></td>
+        <td>{{cuenta.4}}</td>
+        <td>{{cuenta.5}}</td>
+        <td>{{cuenta.6}}</td>
+        <td>{{cuenta.7}}</td>
+        <td>{{cuenta.8}}</td>
+        <td>{{cuenta.9}}</td>
       </tr>
       {% endif %}
       {% endfor %}
@@ -46,15 +47,15 @@
         {% for cuenta in cuentas %}
         {% if cuenta.1=='Pasivo' %}
         <tr>
-          <th scope="row">{{cuenta.0}}</th>
+          <td scope="row">{{cuenta.0}}</td>
           <td>{{cuenta.2}}</td>
           <td>{{cuenta.3}}</td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
-          <td></td>
+          <td>{{cuenta.4}}</td>
+          <td>{{cuenta.5}}</td>
+          <td>{{cuenta.6}}</td>
+          <td>{{cuenta.7}}</td>
+          <td>{{cuenta.8}}</td>
+          <td>{{cuenta.9}}</td>
         </tr>
         {% endif %}
         {% endfor %}
@@ -64,15 +65,15 @@
           {% for cuenta in cuentas %}
           {% if cuenta.1=='Perdida' %}
           <tr>
-            <th scope="row">{{cuenta.0}}</th>
+            <td scope="row">{{cuenta.0}}</td>
             <td>{{cuenta.2}}</td>
             <td>{{cuenta.3}}</td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
-            <td></td>
+            <td>{{cuenta.4}}</td>
+            <td>{{cuenta.5}}</td>
+            <td>{{cuenta.6}}</td>
+            <td>{{cuenta.7}}</td>
+            <td>{{cuenta.8}}</td>
+            <td>{{cuenta.9}}</td>
           </tr>
           {% endif %}
           {% endfor %}
@@ -82,15 +83,15 @@
             {% for cuenta in cuentas %}
             {% if cuenta.1=='Ganancia' %}
             <tr>
-              <th scope="row">{{cuenta.0}}</th>
+              <td scope="row">{{cuenta.0}}</td>
               <td>{{cuenta.2}}</td>
               <td>{{cuenta.3}}</td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td></td>
-              <td></td>
+              <td>{{cuenta.4}}</td>
+              <td>{{cuenta.5}}</td>
+              <td>{{cuenta.6}}</td>
+              <td>{{cuenta.7}}</td>
+              <td>{{cuenta.8}}</td>
+              <td>{{cuenta.9}}</td>
             </tr>
             {% endif %}
             {% endfor %}
@@ -98,4 +99,4 @@
   </table>
   {% endif %}
 </div>
-  {% endblock %} 
+  {% endblock %}

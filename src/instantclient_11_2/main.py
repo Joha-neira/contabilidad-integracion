@@ -234,7 +234,7 @@ def addCompra():
 def getNotasCredito():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos")
+    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ordey by nronc")
     result = crs.fetchall()
     notasCredito = {}
     for nc in result:
@@ -421,10 +421,18 @@ def balanceReversos():
     if 'username' in session:
         conn=getConn()
         crs = conn.cursor()
-        crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY to_char(fecha,'dd/mm/yyyy'),nronc")
-        result = crs.fetchall()
+        crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY nronc")
+        results = crs.fetchall()
+        reversos=[]
+        for result in results:
+            crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
+            detalles=crs.fetchall()
+            res=list(result)
+            res.append(detalles)
+            reversos.append(res)
         conn.close()
-        return render_template('balance-reversos.html', reversos = result)
+        print(reversos)
+        return render_template('balance-reversos.html', reversos = reversos)
     else:
         flash("Debes iniciar sesion para acceder")
         return redirect(url_for('login'))
@@ -435,10 +443,35 @@ def balanceGeneral():
         conn=getConn()
         crs = conn.cursor()
         crs.execute("SELECT c.descripcion, c.tipocuenta, sum(d.debe), sum(d.haber) from cuentas c join detalleasiento d on c.idcuenta=d.idcuenta group by c.descripcion,c.tipocuenta")
-        result = crs.fetchall()
-        print(result)
+        results = crs.fetchall()
+        cuentas=[]
+        for result in results:
+            res=list(result)
+            if result[2] > result[3]:
+                deudor=result[2]-result[3]
+                acreedor=0
+            elif result[2]<result[3]:
+                deudor=0
+                acreedor=result[3]-result[2]
+            else:
+                deudor=0
+                acreedor=0
+            res.append(deudor)
+            res.append(acreedor)
+            if result[1] == 'Activo' or result[1] == 'Pasivo':
+                res.append(deudor)
+                res.append(acreedor)
+                res.append(0)
+                res.append(0)
+            else:
+                res.append(0)
+                res.append(0)
+                res.append(deudor)
+                res.append(acreedor)
+            cuentas.append(res)
+        print(cuentas)
         conn.close()
-        return render_template('balance-general.html', cuentas = result)
+        return render_template('balance-general.html', cuentas = cuentas)
     else:
         flash("Debes iniciar sesion para acceder")
         return redirect(url_for('login'))
