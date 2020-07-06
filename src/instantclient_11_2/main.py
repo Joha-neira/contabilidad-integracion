@@ -231,11 +231,41 @@ def addCompra():
     conn.close()
     return jsonify({"message": "Compra registrada correctamente"})
 
+@app.route('/get-ordenes-compra')
+def getOrdenesCompra():
+    conn=getConn()
+    crs = conn.cursor()
+    crs.execute("SELECT nrooc, rutproveedor, to_char(fecha,'dd/mm/yyyy'), totalneto, codtrabajador FROM ordenescompra order by nrooc")
+    result = crs.fetchall()
+    ordenesCompra = {}
+    for oc in result:
+        crs.execute("SELECT idproducto, cantidad FROM detalleoc where nrooc=:nrooc",nrooc=oc[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1]
+            }
+            detail = dict
+            details.append(detail)
+        dict = {
+        "nroOrdenCompra": oc[0],
+        "rutProveedor": oc[1],
+        "fecha": oc[2],
+        "totalNeto": oc[3],
+        "codTrabajador":oc[4],
+        "detalleOrdenCompra": details
+        }
+        string = 'ordenCompra '+str(oc[0])
+        ordenesCompra[string] = dict
+    return jsonify({"results":ordenesCompra})
+
 @app.route('/get-notas-credito')
 def getNotasCredito():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ordey by nronc")
+    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos order by nronc")
     result = crs.fetchall()
     notasCredito = {}
     for nc in result:
@@ -409,8 +439,7 @@ def balanceVentas():
                     if r!=jerr:
                         r2=json.dumps(r)
                         js_dict=json.loads(r2)
-                        detail.append(js_dict["NOM_PROD"])
-                        detail.append(js_dict["MARCA"])
+                        detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
             ventas.append(res)
@@ -442,8 +471,7 @@ def balanceGastos():
                     if r!=jerr:
                         r2=json.dumps(r)
                         js_dict=json.loads(r2)
-                        detail.append(js_dict["NOM_PROD"])
-                        detail.append(js_dict["MARCA"])
+                        detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
             gastos.append(res)
@@ -474,8 +502,7 @@ def balanceReversos():
                     if r!=jerr:
                         r2=json.dumps(r)
                         js_dict=json.loads(r2)
-                        detail.append(js_dict["NOM_PROD"])
-                        detail.append(js_dict["MARCA"])
+                        detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
             reversos.append(res)
