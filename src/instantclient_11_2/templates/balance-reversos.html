@@ -35,8 +35,8 @@
           <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modal{{nc.0}}">
             Detalle
           </button>
-          <div class="modal fade" id="modal{{nc.0}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
-            <div class="modal-dialog modal-dialog-centered" role="document">
+          <div class="modal fade bd-example-modal-lg" id="modal{{nc.0}}" tabindex="-1" role="dialog" aria-labelledby="exampleModalCenterTitle" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered modal-lg" role="document">
               <div class="modal-content">
                 <div class="modal-header">
                   <h5 class="modal-title" id="exampleModalLongTitle">Detalle Productos Reversados</h5>
@@ -49,6 +49,8 @@
                     <thead class="thead-light">
                       <tr>
                         <th scope="col">Id Producto</th>
+                        <th scope="col">Nombre</th>
+                        <th scope="col">Marca</th>
                         <th scope="col">Cantidad</th>
                         <th scope="col">Motivo</th>
                       </tr>
@@ -56,6 +58,8 @@
                         {% for detalle in nc.5 %}
                           <tr>
                             <th scope="row">{{detalle.0}}</th>
+                            <td>{{detalle.3}}</td>
+                            <td>{{detalle.4}}</td>
                             <td>{{detalle.1}}</td>
                             <td>{{detalle.2}}</td>
                           </tr>

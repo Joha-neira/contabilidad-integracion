@@ -5,6 +5,7 @@ from models import Venta
 import requests
 import boto3
 import hashlib,hmac,base64
+import json
 
 app = Flask(__name__)
 # app config 
@@ -314,8 +315,6 @@ def getBalancesVentasMensuales():
     return jsonify({'results':result})
 
 
-
-
 # rutas de templates
 @app.route('/login',methods=['GET','POST'])
 def login():
@@ -395,9 +394,28 @@ def balanceVentas():
         conn=getConn()
         crs = conn.cursor()
         crs.execute("SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas ORDER BY to_char(fecha,'dd/mm/yyyy'), nroboleta")
-        result = crs.fetchall()
+        results = crs.fetchall()
+        ventas=[]
+        for result in results:
+            crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=result[0])
+            detalles=crs.fetchall()
+            res=list(result)
+            if len(detalles)>0:
+                details=[]
+                for detalle in detalles:
+                    detail=list(detalle)
+                    r=get_detalle_producto(detalle[0])
+                    jerr={'detail': 'Not found.'}
+                    if r!=jerr:
+                        r2=json.dumps(r)
+                        js_dict=json.loads(r2)
+                        detail.append(js_dict["NOM_PROD"])
+                        detail.append(js_dict["MARCA"])
+                    details.append(detail)
+            res.append(details)
+            ventas.append(res)
         conn.close()
-        return render_template('balance-ventas.html', boletas = result)
+        return render_template('balance-ventas.html', boletas = ventas)
     else:
         flash("Debes iniciar sesion para acceder")
         return redirect(url_for('login'))
@@ -409,9 +427,28 @@ def balanceGastos():
         crs = conn.cursor()
         crs.execute("""SELECT nrooperacion, nrofactura, rutproveedor, to_char(fecha,'dd/mm/yyyy'), 
         totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras ORDER BY to_char(fecha,'dd/mm/yyyy'),nrooperacion""")
-        result = crs.fetchall()
+        results = crs.fetchall()
+        gastos=[]
+        for result in results:
+            crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=result[0])
+            detalles=crs.fetchall()
+            res=list(result)
+            if len(detalles)>0:
+                details=[]
+                for detalle in detalles:
+                    detail=list(detalle)
+                    r=get_detalle_producto(detalle[0])
+                    jerr={'detail': 'Not found.'}
+                    if r!=jerr:
+                        r2=json.dumps(r)
+                        js_dict=json.loads(r2)
+                        detail.append(js_dict["NOM_PROD"])
+                        detail.append(js_dict["MARCA"])
+                    details.append(detail)
+            res.append(details)
+            gastos.append(res)
         conn.close()
-        return render_template('balance-gastos.html',gastos = result)
+        return render_template('balance-gastos.html',gastos = gastos)
     else:
         flash("Debes iniciar sesion para acceder")
         return redirect(url_for('login'))
@@ -428,14 +465,27 @@ def balanceReversos():
             crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
             detalles=crs.fetchall()
             res=list(result)
-            res.append(detalles)
+            if len(detalles)>0:
+                details=[]
+                for detalle in detalles:
+                    detail=list(detalle)
+                    r=get_detalle_producto(detalle[0])
+                    jerr={'detail': 'Not found.'}
+                    if r!=jerr:
+                        r2=json.dumps(r)
+                        js_dict=json.loads(r2)
+                        detail.append(js_dict["NOM_PROD"])
+                        detail.append(js_dict["MARCA"])
+                    details.append(detail)
+            res.append(details)
             reversos.append(res)
         conn.close()
-        print(reversos)
         return render_template('balance-reversos.html', reversos = reversos)
     else:
         flash("Debes iniciar sesion para acceder")
         return redirect(url_for('login'))
+
+
 
 @app.route('/balance-general')
 def balanceGeneral():
@@ -566,3 +616,5 @@ def lambda_handler(username,password):
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=5000)
+
+
