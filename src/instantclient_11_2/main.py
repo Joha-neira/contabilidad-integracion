@@ -7,6 +7,7 @@ import boto3
 import hashlib,hmac,base64
 import json
 
+global conex
 app = Flask(__name__)
 # app config 
 # login_manager = LoginManager()
@@ -117,19 +118,22 @@ def getBoleta(idBoleta):
     crs = conn.cursor()
     crs.execute("SELECT * FROM ventas WHERE nroboleta = :filtro", filtro = idBoleta)
     result = crs.fetchall()
-    if result[0][4] == 101:
-        tipoPago = "Efectivo"
+    if len(result)>0:
+        if result[0][4] == 101:
+            tipoPago = "Efectivo"
+        else:
+            tipoPago = "Transferencia"
+        #corregir serializacion de objeto BLOB
+        boleta = {
+            "idBoleta": result[0][0],
+            "rutCliente": result[0][1],
+            "fecha": result[0][2],
+            "totalNeto": result[0][3],
+            "tipoPago":tipoPago,
+            "documento":'boleta'+str(result[0][0])+'.pdf'
+        }
     else:
-        tipoPago = "Transferencia"
-    #corregir serializacion de objeto BLOB
-    boleta = {
-        "idBoleta": result[0][0],
-        "rutCliente": result[0][1],
-        "fecha": result[0][2],
-        "totalNeto": result[0][3],
-        "tipoPago":tipoPago,
-        "documento":'boleta'+str(result[0][0])+'.pdf'
-    }
+        boleta = "No existen resultados"
     return jsonify({'result':boleta})
 
 #registrar nueva boleta en BD
@@ -426,6 +430,8 @@ def balanceVentas():
         crs.execute("SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas ORDER BY to_char(fecha,'dd/mm/yyyy'), nroboleta")
         results = crs.fetchall()
         ventas=[]
+        global conex
+        conex=""
         for result in results:
             crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=result[0])
             detalles=crs.fetchall()
@@ -434,12 +440,13 @@ def balanceVentas():
                 details=[]
                 for detalle in detalles:
                     detail=list(detalle)
-                    r=get_detalle_producto(detalle[0])
-                    jerr={'detail': 'Not found.'}
-                    if r!=jerr:
-                        r2=json.dumps(r)
-                        js_dict=json.loads(r2)
-                        detail.append(js_dict["DESCRIPCION"])
+                    if conex=="":
+                        r=get_detalle_producto(detalle[0])
+                        jerr={'detail': 'Not found.'}
+                        if r!=jerr and conex=="":
+                            r2=json.dumps(r)
+                            js_dict=json.loads(r2)
+                            detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
             ventas.append(res)
@@ -458,6 +465,8 @@ def balanceGastos():
         totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras ORDER BY to_char(fecha,'dd/mm/yyyy'),nrooperacion""")
         results = crs.fetchall()
         gastos=[]
+        global conex
+        conex=""
         for result in results:
             crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=result[0])
             detalles=crs.fetchall()
@@ -466,12 +475,13 @@ def balanceGastos():
                 details=[]
                 for detalle in detalles:
                     detail=list(detalle)
-                    r=get_detalle_producto(detalle[0])
-                    jerr={'detail': 'Not found.'}
-                    if r!=jerr:
-                        r2=json.dumps(r)
-                        js_dict=json.loads(r2)
-                        detail.append(js_dict["DESCRIPCION"])
+                    if conex=="":
+                        r=get_detalle_producto(detalle[0])
+                        jerr={'detail': 'Not found.'}
+                        if r!=jerr and conex=="":
+                            r2=json.dumps(r)
+                            js_dict=json.loads(r2)
+                            detail.append(js_dict["DESCRIPCION"])                       
                     details.append(detail)
             res.append(details)
             gastos.append(res)
@@ -489,6 +499,8 @@ def balanceReversos():
         crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY nronc")
         results = crs.fetchall()
         reversos=[]
+        global conex
+        conex=""
         for result in results:
             crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
             detalles=crs.fetchall()
@@ -497,12 +509,13 @@ def balanceReversos():
                 details=[]
                 for detalle in detalles:
                     detail=list(detalle)
-                    r=get_detalle_producto(detalle[0])
-                    jerr={'detail': 'Not found.'}
-                    if r!=jerr:
-                        r2=json.dumps(r)
-                        js_dict=json.loads(r2)
-                        detail.append(js_dict["DESCRIPCION"])
+                    if conex=="":
+                        r=get_detalle_producto(detalle[0])
+                        jerr={'detail': 'Not found.'}
+                        if r!=jerr and conex=="":
+                            r2=json.dumps(r)
+                            js_dict=json.loads(r2)
+                            detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
             reversos.append(res)
@@ -561,10 +574,15 @@ def logout():
 
 # funcion que retorna detalle de productos por id (valor de prueba = "123456789ABCDEFG")
 def get_detalle_producto(id_producto):
-    url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
-    r = requests.get(url_get_producto).json()
-    return r
-
+    try:
+        url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
+        r = requests.get(url_get_producto, timeout=10).json()
+        return r
+    except requests.exceptions.RequestException as e:
+        print (e)
+        global conex
+        conex=e
+        return None
 #funcion que retorna detalle de proveedor segun id (valor de prueba = "PRIMER_RUT")
 def get_detalle_proveedor(id_proveedor):
     url_get_proveedor = "http://ec2-54-146-107-251.compute-1.amazonaws.com/proveedor/{}/".format(id_proveedor)
