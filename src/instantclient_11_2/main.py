@@ -8,6 +8,9 @@ import hashlib,hmac,base64
 import json
 
 global conex
+global res_auth
+res_auth = None
+
 app = Flask(__name__)
 # app config 
 # login_manager = LoginManager()
@@ -21,6 +24,7 @@ app.config['JSON_SORT_KEYS'] = False
 app.secret_key = '_5#y2L"F4Q8z]/'
 
 client = boto3.client('cognito-idp')
+
 
 #probando primer endpoint
 @app.route('/hola')
@@ -352,6 +356,8 @@ def getBalancesVentasMensuales():
 # rutas de templates
 @app.route('/login',methods=['GET','POST'])
 def login():
+    global res_auth
+    res_auth = None
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -388,6 +394,7 @@ def login():
             # session['username'] = request.form['username']
         # return redirect(url_for('home'))
     return render_template('login.html')
+    
 
 @app.route('/iniciar-sesion', methods=['POST'])
 def iniciarSesion():
@@ -395,6 +402,9 @@ def iniciarSesion():
 
 @app.route('/')
 def home():
+    global res_auth
+    if res_auth == None:
+        session.pop('username', None)
     if 'username' in session:
         usuario = session['username']
         return render_template('index.html', nombreUsuario = usuario)
@@ -446,6 +456,9 @@ def balanceVentas():
                         if r!=jerr and conex=="":
                             r2=json.dumps(r)
                             js_dict=json.loads(r2)
+                            detail.append(js_dict["NOM_PROD"])
+                            detail.append(js_dict["MARCA"])
+                            detail.append(js_dict["MODELO"])
                             detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
@@ -481,6 +494,9 @@ def balanceGastos():
                         if r!=jerr and conex=="":
                             r2=json.dumps(r)
                             js_dict=json.loads(r2)
+                            detail.append(js_dict["NOM_PROD"])
+                            detail.append(js_dict["MARCA"])
+                            detail.append(js_dict["MODELO"])
                             detail.append(js_dict["DESCRIPCION"])                       
                     details.append(detail)
             res.append(details)
@@ -515,6 +531,9 @@ def balanceReversos():
                         if r!=jerr and conex=="":
                             r2=json.dumps(r)
                             js_dict=json.loads(r2)
+                            detail.append(js_dict["NOM_PROD"])
+                            detail.append(js_dict["MARCA"])
+                            detail.append(js_dict["MODELO"])
                             detail.append(js_dict["DESCRIPCION"])
                     details.append(detail)
             res.append(details)
@@ -569,24 +588,37 @@ def balanceGeneral():
 @app.route('/logout')
 def logout():
     # remove the username from the session if it's there
+    global res_auth
+    res_auth = None
     session.pop('username', None)
     return redirect(url_for('login'))
 
 # funcion que retorna detalle de productos por id (valor de prueba = "123456789ABCDEFG")
 def get_detalle_producto(id_producto):
     try:
-        url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
-        r = requests.get(url_get_producto, timeout=10).json()
+        global res_auth
+        token = res_auth["data"]["access_token"]
+        headers = {      
+            'Authorization': "Bearer " + token,
+            'content-type': "application/json"
+        }
+        #r = requests.get('https://tonwzkx6o5.execute-api.us-east-1.amazonaws.com/stock/producto',headers=headers).json()
+        url_get_producto = "https://tonwzkx6o5.execute-api.us-east-1.amazonaws.com/stock/producto/{}/".format(id_producto)  
+        #url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
+        r = requests.get(url_get_producto, headers=headers, timeout=10).json()
         return r
     except requests.exceptions.RequestException as e:
         print (e)
         global conex
         conex=e
         return None
+    except Exception as e:
+        print (e._str_)
 #funcion que retorna detalle de proveedor segun id (valor de prueba = "PRIMER_RUT")
 def get_detalle_proveedor(id_proveedor):
     url_get_proveedor = "http://ec2-54-146-107-251.compute-1.amazonaws.com/proveedor/{}/".format(id_proveedor)
     r = requests.get(url_get_proveedor).json()
+    print(r)
     return r
 
 
