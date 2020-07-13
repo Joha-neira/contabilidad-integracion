@@ -7,6 +7,10 @@ import boto3
 import hashlib,hmac,base64
 import json
 
+global conex
+global res_auth
+res_auth = None
+
 app = Flask(__name__)
 # app config 
 # login_manager = LoginManager()
@@ -20,6 +24,7 @@ app.config['JSON_SORT_KEYS'] = False
 app.secret_key = '_5#y2L"F4Q8z]/'
 
 client = boto3.client('cognito-idp')
+
 
 #probando primer endpoint
 @app.route('/hola')
@@ -71,8 +76,9 @@ def getIdNotaCredito():
     crs = conn.cursor()
     crs.execute("SELECT last_number FROM user_sequences where sequence_name='NOTACREDITO_SEQ'")
     result = crs.fetchall()
+    idNotaCredito = result[0][0]
     conn.close()
-    return jsonify({'idNotaCredito': result})
+    return jsonify({'idNotaCredito': idNotaCredito})
 
 #obtener boletas para enviar a postventas y hacer reversos
 @app.route('/get-boletas')
@@ -117,19 +123,22 @@ def getBoleta(idBoleta):
     crs = conn.cursor()
     crs.execute("SELECT * FROM ventas WHERE nroboleta = :filtro", filtro = idBoleta)
     result = crs.fetchall()
-    if result[0][4] == 101:
-        tipoPago = "Efectivo"
+    if len(result)>0:
+        if result[0][4] == 101:
+            tipoPago = "Efectivo"
+        else:
+            tipoPago = "Transferencia"
+        #corregir serializacion de objeto BLOB
+        boleta = {
+            "idBoleta": result[0][0],
+            "rutCliente": result[0][1],
+            "fecha": result[0][2],
+            "totalNeto": result[0][3],
+            "tipoPago":tipoPago,
+            "documento":'boleta'+str(result[0][0])+'.pdf'
+        }
     else:
-        tipoPago = "Transferencia"
-    #corregir serializacion de objeto BLOB
-    boleta = {
-        "idBoleta": result[0][0],
-        "rutCliente": result[0][1],
-        "fecha": result[0][2],
-        "totalNeto": result[0][3],
-        "tipoPago":tipoPago,
-        "documento":'boleta'+str(result[0][0])+'.pdf'
-    }
+        boleta = "No existen resultados"
     return jsonify({'result':boleta})
 
 #registrar nueva boleta en BD
@@ -196,7 +205,7 @@ def addNotaCredito():
     for i in range(len(detalleReverso)):
         idProducto = detalleReverso[i]['idProducto']
         cantidad = detalleReverso[i]['cantidad']
-        motivo = detalleReverso[i]['motivo']
+        motivo = detalleReverso[i]['motivo'].encode('utf-8')
         sql = """INSERT INTO detallereverso (idProducto,cantidad,motivo,nroNc)
           VALUES (:idProducto,:cantidad,:motivo,notacredito_seq.currval)"""
         crs.execute(sql,[idProducto,cantidad,motivo])
@@ -231,11 +240,41 @@ def addCompra():
     conn.close()
     return jsonify({"message": "Compra registrada correctamente"})
 
+@app.route('/get-ordenes-compra')
+def getOrdenesCompra():
+    conn=getConn()
+    crs = conn.cursor()
+    crs.execute("SELECT nrooc, rutproveedor, to_char(fecha,'dd/mm/yyyy'), totalneto, codtrabajador FROM ordenescompra order by nrooc")
+    result = crs.fetchall()
+    ordenesCompra = {}
+    for oc in result:
+        crs.execute("SELECT idproducto, cantidad FROM detalleoc where nrooc=:nrooc",nrooc=oc[0])
+        detalles=crs.fetchall()
+        details=[]
+        for detalle in detalles:
+            dict={
+                "idProducto": detalle[0],
+                "cantidad": detalle[1]
+            }
+            detail = dict
+            details.append(detail)
+        dict = {
+        "nroOrdenCompra": oc[0],
+        "rutProveedor": oc[1],
+        "fecha": oc[2],
+        "totalNeto": oc[3],
+        "codTrabajador":oc[4],
+        "detalleOrdenCompra": details
+        }
+        string = 'ordenCompra '+str(oc[0])
+        ordenesCompra[string] = dict
+    return jsonify({"results":ordenesCompra})
+
 @app.route('/get-notas-credito')
 def getNotasCredito():
     conn=getConn()
     crs = conn.cursor()
-    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ordey by nronc")
+    crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos order by nronc")
     result = crs.fetchall()
     notasCredito = {}
     for nc in result:
@@ -318,6 +357,8 @@ def getBalancesVentasMensuales():
 # rutas de templates
 @app.route('/login',methods=['GET','POST'])
 def login():
+    global res_auth
+    res_auth = None
     if request.method == 'POST':
         username = request.form['username']
         password = request.form['password']
@@ -354,6 +395,7 @@ def login():
             # session['username'] = request.form['username']
         # return redirect(url_for('home'))
     return render_template('login.html')
+    
 
 @app.route('/iniciar-sesion', methods=['POST'])
 def iniciarSesion():
@@ -361,6 +403,9 @@ def iniciarSesion():
 
 @app.route('/')
 def home():
+    global res_auth
+    if res_auth == None:
+        session.pop('username', None)
     if 'username' in session:
         usuario = session['username']
         return render_template('index.html', nombreUsuario = usuario)
@@ -388,103 +433,229 @@ def libroDiario():
         flash("Debes iniciar sesion para acceder")
         return redirect(url_for('login'))
 
-@app.route('/balance-ventas')
+@app.route('/balance-ventas', methods=['GET','POST'])
 def balanceVentas():
-    if 'username' in session:
-        conn=getConn()
-        crs = conn.cursor()
-        crs.execute("SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas ORDER BY to_char(fecha,'dd/mm/yyyy'), nroboleta")
-        results = crs.fetchall()
-        ventas=[]
-        for result in results:
-            crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=result[0])
-            detalles=crs.fetchall()
-            res=list(result)
-            if len(detalles)>0:
-                details=[]
-                for detalle in detalles:
-                    detail=list(detalle)
-                    r=get_detalle_producto(detalle[0])
-                    jerr={'detail': 'Not found.'}
-                    if r!=jerr:
-                        r2=json.dumps(r)
-                        js_dict=json.loads(r2)
-                        detail.append(js_dict["NOM_PROD"])
-                        detail.append(js_dict["MARCA"])
-                    details.append(detail)
-            res.append(details)
-            ventas.append(res)
-        conn.close()
-        return render_template('balance-ventas.html', boletas = ventas)
-    else:
-        flash("Debes iniciar sesion para acceder")
-        return redirect(url_for('login'))
+    global conex
+    if  request.method == 'GET':
+        if 'username' in session:
+            conn=getConn()
+            crs = conn.cursor()
+            crs.execute("SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas ORDER BY fecha desc, nroboleta desc")
+            results = crs.fetchall()
+            ventas=[]
+            conex=""
+            for result in results:
+                crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=result[0])
+                detalles=crs.fetchall()
+                res=list(result)
+                if len(detalles)>0:
+                    details=[]
+                    for detalle in detalles:
+                        detail=list(detalle)
+                        if conex=="":
+                            r=get_detalle_producto(detalle[0])
+                            jerr={'detail': 'Not found.'}
+                            if r!=jerr and conex=="":
+                                r2=json.dumps(r)
+                                js_dict=json.loads(r2)
+                                detail.append(js_dict["NOM_PROD"])
+                                detail.append(js_dict["MARCA"])
+                                detail.append(js_dict["MODELO"])
+                                detail.append(js_dict["DESCRIPCION"])
+                        details.append(detail)
+                res.append(details)
+                ventas.append(res)
+            conn.close()
+            return render_template('balance-ventas.html', boletas = ventas)
+        else:
+            flash("Debes iniciar sesion para acceder")
+            return redirect(url_for('login'))
+    if request.method == 'POST':
+        if 'username' in session:
+            fecha=request.form['filtro']
+            conn=getConn()
+            crs = conn.cursor()
+            sql="SELECT nroboleta, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, idtipopago FROM ventas where fecha=:fecha ORDER BY fecha desc, nroboleta desc"
+            crs.execute(sql,[fecha])
+            results = crs.fetchall()
+            ventas=[]
+            conex=""
+            for result in results:
+                crs.execute("SELECT idproducto, cantidad FROM detalleventa where nroboleta=:nroboleta",nroboleta=result[0])
+                detalles=crs.fetchall()
+                res=list(result)
+                if len(detalles)>0:
+                    details=[]
+                    for detalle in detalles:
+                        detail=list(detalle)
+                        if conex=="":
+                            r=get_detalle_producto(detalle[0])
+                            jerr={'detail': 'Not found.'}
+                            if r!=jerr and conex=="":
+                                r2=json.dumps(r)
+                                js_dict=json.loads(r2)
+                                detail.append(js_dict["NOM_PROD"])
+                                detail.append(js_dict["MARCA"])
+                                detail.append(js_dict["MODELO"])
+                                detail.append(js_dict["DESCRIPCION"])
+                        details.append(detail)
+                res.append(details)
+                ventas.append(res)
+            conn.close()
+            return render_template('balance-ventas.html', boletas = ventas)
+        else:
+            flash("Debes iniciar sesion para acceder")
+            return redirect(url_for('login'))
 
-@app.route('/balance-gastos')
+@app.route('/balance-gastos', methods=['GET','POST'])
 def balanceGastos():
-    if 'username' in session:
-        conn=getConn()
-        crs = conn.cursor()
-        crs.execute("""SELECT nrooperacion, nrofactura, rutproveedor, to_char(fecha,'dd/mm/yyyy'), 
-        totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras ORDER BY to_char(fecha,'dd/mm/yyyy'),nrooperacion""")
-        results = crs.fetchall()
-        gastos=[]
-        for result in results:
-            crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=result[0])
-            detalles=crs.fetchall()
-            res=list(result)
-            if len(detalles)>0:
-                details=[]
-                for detalle in detalles:
-                    detail=list(detalle)
-                    r=get_detalle_producto(detalle[0])
-                    jerr={'detail': 'Not found.'}
-                    if r!=jerr:
-                        r2=json.dumps(r)
-                        js_dict=json.loads(r2)
-                        detail.append(js_dict["NOM_PROD"])
-                        detail.append(js_dict["MARCA"])
-                    details.append(detail)
-            res.append(details)
-            gastos.append(res)
-        conn.close()
-        return render_template('balance-gastos.html',gastos = gastos)
-    else:
-        flash("Debes iniciar sesion para acceder")
-        return redirect(url_for('login'))
+    global conex
+    if  request.method == 'GET':
+        if 'username' in session:
+            conn=getConn()
+            crs = conn.cursor()
+            crs.execute("""SELECT nrooperacion, nrofactura, rutproveedor, to_char(fecha,'dd/mm/yyyy'), 
+            totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras ORDER BY fecha desc, 1 desc""")
+            results = crs.fetchall()
+            gastos=[]
+            conex=""
+            for result in results:
+                crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=result[0])
+                detalles=crs.fetchall()
+                res=list(result)
+                if len(detalles)>0:
+                    details=[]
+                    for detalle in detalles:
+                        detail=list(detalle)
+                        if conex=="":
+                            r=get_detalle_producto(detalle[0])
+                            jerr={'detail': 'Not found.'}
+                            if r!=jerr and conex=="":
+                                r2=json.dumps(r)
+                                js_dict=json.loads(r2)
+                                detail.append(js_dict["NOM_PROD"])
+                                detail.append(js_dict["MARCA"])
+                                detail.append(js_dict["MODELO"])
+                                detail.append(js_dict["DESCRIPCION"])                       
+                        details.append(detail)
+                res.append(details)
+                gastos.append(res)
+            conn.close()
+            return render_template('balance-gastos.html',gastos = gastos)
+        else:
+            flash("Debes iniciar sesion para acceder")
+            return redirect(url_for('login'))
+    if request.method == 'POST':
+        if 'username' in session:
+            fecha=request.form['filtro']
+            conn=getConn()
+            crs = conn.cursor()
+            sql="""SELECT nrooperacion, nrofactura, rutproveedor, to_char(fecha,'dd/mm/yyyy'), 
+            totalneto, codtrabajador, nrooc, documento, iddepartamento FROM compras where to_char(fecha,'mm/yyyy')=:fecha ORDER BY fecha desc, 1 desc"""
+            crs.execute(sql,[fecha])
+            results = crs.fetchall()
+            gastos=[]
+            conex=""
+            for result in results:
+                crs.execute("SELECT idproducto, cantidad FROM detallecompra where nrooperacion=:nrooperacion",nrooperacion=result[0])
+                detalles=crs.fetchall()
+                res=list(result)
+                if len(detalles)>0:
+                    details=[]
+                    for detalle in detalles:
+                        detail=list(detalle)
+                        if conex=="":
+                            r=get_detalle_producto(detalle[0])
+                            jerr={'detail': 'Not found.'}
+                            if r!=jerr and conex=="":
+                                r2=json.dumps(r)
+                                js_dict=json.loads(r2)
+                                detail.append(js_dict["NOM_PROD"])
+                                detail.append(js_dict["MARCA"])
+                                detail.append(js_dict["MODELO"])
+                                detail.append(js_dict["DESCRIPCION"])                       
+                        details.append(detail)
+                res.append(details)
+                gastos.append(res)
+            conn.close()
+            return render_template('balance-gastos.html',gastos = gastos)
+        else:
+            flash("Debes iniciar sesion para acceder")
+            return redirect(url_for('login'))
 
-@app.route('/balance-reversos')
+@app.route('/balance-reversos', methods=['GET','POST'])
 def balanceReversos():
-    if 'username' in session:
-        conn=getConn()
-        crs = conn.cursor()
-        crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY nronc")
-        results = crs.fetchall()
-        reversos=[]
-        for result in results:
-            crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
-            detalles=crs.fetchall()
-            res=list(result)
-            if len(detalles)>0:
-                details=[]
-                for detalle in detalles:
-                    detail=list(detalle)
-                    r=get_detalle_producto(detalle[0])
-                    jerr={'detail': 'Not found.'}
-                    if r!=jerr:
-                        r2=json.dumps(r)
-                        js_dict=json.loads(r2)
-                        detail.append(js_dict["NOM_PROD"])
-                        detail.append(js_dict["MARCA"])
-                    details.append(detail)
-            res.append(details)
-            reversos.append(res)
-        conn.close()
-        return render_template('balance-reversos.html', reversos = reversos)
-    else:
-        flash("Debes iniciar sesion para acceder")
-        return redirect(url_for('login'))
-
+    global conex
+    if request.method == 'GET':
+        if 'username' in session:
+            conn=getConn()
+            crs = conn.cursor()
+            crs.execute("SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos ORDER BY fecha desc, 1 desc")
+            results = crs.fetchall()
+            reversos=[]
+            conex=""
+            for result in results:
+                crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
+                detalles=crs.fetchall()
+                res=list(result)
+                if len(detalles)>0:
+                    details=[]
+                    for detalle in detalles:
+                        detail=list(detalle)
+                        if conex=="":
+                            r=get_detalle_producto(detalle[0])
+                            jerr={'detail': 'Not found.'}
+                            if r!=jerr and conex=="":
+                                r2=json.dumps(r)
+                                js_dict=json.loads(r2)
+                                detail.append(js_dict["NOM_PROD"])
+                                detail.append(js_dict["MARCA"])
+                                detail.append(js_dict["MODELO"])
+                                detail.append(js_dict["DESCRIPCION"])
+                        details.append(detail)
+                res.append(details)
+                reversos.append(res)
+            conn.close()
+            return render_template('balance-reversos.html', reversos = reversos)
+        else:
+            flash("Debes iniciar sesion para acceder")
+            return redirect(url_for('login'))
+    if request.method == 'POST':
+        if 'username' in session:
+            fecha=request.form['filtro']
+            conn=getConn()
+            crs = conn.cursor()
+            sql="SELECT nronc, rutcliente, to_char(fecha,'dd/mm/yyyy'), totalneto, nroboleta FROM reversos where fecha=:fecha ORDER BY fecha desc, 1 desc"
+            crs.execute(sql,[fecha])
+            results = crs.fetchall()
+            reversos=[]
+            conex=""
+            for result in results:
+                crs.execute("SELECT idproducto, cantidad, motivo FROM detallereverso where nronc=:nronc",nronc=result[0])
+                detalles=crs.fetchall()
+                res=list(result)
+                if len(detalles)>0:
+                    details=[]
+                    for detalle in detalles:
+                        detail=list(detalle)
+                        if conex=="":
+                            r=get_detalle_producto(detalle[0])
+                            jerr={'detail': 'Not found.'}
+                            if r!=jerr and conex=="":
+                                r2=json.dumps(r)
+                                js_dict=json.loads(r2)
+                                detail.append(js_dict["NOM_PROD"])
+                                detail.append(js_dict["MARCA"])
+                                detail.append(js_dict["MODELO"])
+                                detail.append(js_dict["DESCRIPCION"])
+                        details.append(detail)
+                res.append(details)
+                reversos.append(res)
+            conn.close()
+            return render_template('balance-reversos.html', reversos = reversos)
+        else:
+            flash("Debes iniciar sesion para acceder")
+            return redirect(url_for('login'))
 
 
 @app.route('/balance-general')
@@ -529,19 +700,37 @@ def balanceGeneral():
 @app.route('/logout')
 def logout():
     # remove the username from the session if it's there
+    global res_auth
+    res_auth = None
     session.pop('username', None)
     return redirect(url_for('login'))
 
 # funcion que retorna detalle de productos por id (valor de prueba = "123456789ABCDEFG")
 def get_detalle_producto(id_producto):
-    url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
-    r = requests.get(url_get_producto).json()
-    return r
-
+    try:
+        global res_auth
+        token = res_auth["data"]["access_token"]
+        headers = {      
+            'Authorization': "Bearer " + token,
+            'content-type': "application/json"
+        }
+        #r = requests.get('https://tonwzkx6o5.execute-api.us-east-1.amazonaws.com/stock/producto',headers=headers).json()
+        url_get_producto = "https://tonwzkx6o5.execute-api.us-east-1.amazonaws.com/stock/producto/{}/".format(id_producto)  
+        #url_get_producto = "http://ec2-54-146-107-251.compute-1.amazonaws.com/producto/{}/".format(id_producto)
+        r = requests.get(url_get_producto, headers=headers, timeout=10).json()
+        return r
+    except requests.exceptions.RequestException as e:
+        print (e)
+        global conex
+        conex=e
+        return None
+    except Exception as e:
+        print (e._str_)
 #funcion que retorna detalle de proveedor segun id (valor de prueba = "PRIMER_RUT")
 def get_detalle_proveedor(id_proveedor):
     url_get_proveedor = "http://ec2-54-146-107-251.compute-1.amazonaws.com/proveedor/{}/".format(id_proveedor)
     r = requests.get(url_get_proveedor).json()
+    print(r)
     return r
 
 
@@ -616,5 +805,4 @@ def lambda_handler(username,password):
 
 if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=5000)
-
 
