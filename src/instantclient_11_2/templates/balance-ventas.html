@@ -3,27 +3,24 @@
 <div class="container">
   <br>
     <h1 class="tituloBalance text-center">Balance de ventas</h1><br><br>
-    <form autocomplete="off" action="/balance-ventas" method="POST">
+    <div autocomplete="off">
       <div class="form-row">
         <label for="filtro" class="col-md-2 col-form-label col-form-label-lg">Reporte Mensual</label>
         <div class="form-group mb-4 col-md-4">
           <div class="datepicker date input-group p-0 shadow-sm">
-              <input type="text" placeholder="Selecciona un mes" class="form-control form-control-lg" id="filtro" name="filtro">
+              <input type="text" placeholder="Selecciona un mes" class="form-control form-control-lg" id="filtro" name="filtro" onchange="myFunction()">
               <div class="input-group-append"><span class="input-group-text px-4"><i class="fa fa-calendar"></i></span></div>
           </div>
         </div>
-        <div class="form-group col-md-1">
-          <button type="submit" class="btn btn-primary py-2 mt-1">Filtrar</button>
-        </div>
-        <div class="form-group col-md-3">
-          <a href="/balance-ventas" class="btn btn-primary py-2 mt-1">Quitar Filtros</a>
+        <div class="form-group col-md-2">
+          <button onclick="myFunction2()" class="btn btn-primary py-2 mt-1">Quitar Filtros</button>
         </div>
       </div>
-    </form>
-    <br><br><br>
+    </div>
+    <br><br>
     <h3>Últimos movimientos</h3>
     <br>
-    <table class="table">
+    <table class="table" id="table">
       <thead class="thead-light">
         <tr>
           <th scope="col">Id boleta</th>
@@ -37,7 +34,7 @@
       </thead>
       <tbody>
           {% for boleta in boletas %}
-        <tr >
+        <tr class="linea">
           <th scope="row">{{boleta.0}}</th>
           <td>{{boleta.1}}</td>
           {% if boleta.4 == 101 %}
@@ -101,7 +98,6 @@
     <script type="text/javascript">
       $(function () {
           $('.datepicker').datepicker({
-              clearBtn: true,
               format: "mm/yyyy",
               endDate: "Today",
               startView: 1,
@@ -110,6 +106,41 @@
               autoclose: true
           });
       });
+    </script>
+    <script>
+      function myFunction() {
+        var input, filter, table, tr, td, i, txtValue;
+        input = document.getElementById("filtro");
+        filter = input.value.toUpperCase();
+        table = document.getElementById("table");
+        tr = table.getElementsByClassName("linea");
+        for (i = 0; i < tr.length; i++) {
+          td = tr[i].getElementsByTagName("td")[2];
+          if (td) {
+            txtValue = td.textContent || td.innerText;
+            if (txtValue.toUpperCase().indexOf(filter) > -1) {
+              tr[i].style.display = "";
+            } else {
+              tr[i].style.display = "none";
+            }
+          }       
+        }
+      }
+    </script>
+    <script>
+      function myFunction2() {
+        var input, filter, table, tr, td, i;
+        input = document.getElementById("filtro");
+        input.value="";
+        table = document.getElementById("table");
+        tr = table.getElementsByClassName("linea");
+        for (i = 0; i < tr.length; i++) {
+          td = tr[i].getElementsByTagName("td")[2];
+          if (td) {
+            tr[i].style.display = "";
+          }    
+        }
+      }
     </script>
     </div>
 {% endblock %}
