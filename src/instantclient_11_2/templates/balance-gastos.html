@@ -6,11 +6,24 @@
   {% else %}
   <br>
   <h1 class="tituloBalance text-center">Balance de gastos</h1><br><br>
-  <a href="" class="btn btn-success">Reporte mensual</a>
-  <br><br><br>
+  <div autocomplete="off">
+    <div class="form-row">
+      <label for="filtro" class="col-md-2 col-form-label col-form-label-lg">Reporte Mensual</label>
+      <div class="form-group mb-4 col-md-4">
+        <div class="datepicker date input-group p-0 shadow-sm">
+            <input type="text" placeholder="Selecciona un mes" class="form-control form-control-lg" id="filtro" name="filtro" onchange="myFunction()">
+            <div class="input-group-append"><span class="input-group-text px-4"><i class="fa fa-calendar"></i></span></div>
+        </div>
+      </div>
+      <div class="form-group col-md-2">
+        <button onclick="myFunction2()" class="btn btn-primary py-2 mt-1">Quitar Filtros</button>
+      </div>
+    </div>
+  </div>
+  <br><br>
   <h3>Últimos movimientos</h3>
   <br>
-  <table class="table">
+  <table class="table" id="table">
     <thead class="thead-light">
       <tr>
         <th scope="col">Nro movimiento</th>
@@ -26,7 +39,7 @@
     </thead>
     <tbody>
       {% for gasto in gastos %}
-      <tr>
+      <tr class="linea">
         <th scope="row">{{gasto.0}}</th>
         <td>{{gasto.6}}</td>
         <td>{{gasto.1}}</td>
@@ -59,6 +72,8 @@
                         <th scope="col">Id Producto</th>
                         <th scope="col">Nombre</th>
                         <th scope="col">Marca</th>
+                        <th scope="col">Modelo</th>
+                        <th scope="col">Descripción</th>
                         <th scope="col">Cantidad</th>
                       </tr>
                       <tbody>
@@ -67,6 +82,8 @@
                             <th scope="row">{{detalle.0}}</th>
                             <td>{{detalle.2}}</td>
                             <td>{{detalle.3}}</td>
+                            <td>{{detalle.4}}</td>
+                            <td>{{detalle.5}}</td>
                             <td>{{detalle.1}}</td>
                           </tr>
                         {% endfor %}
@@ -86,5 +103,52 @@
     </tbody>
   </table>
   {% endif %}
+  <script type="text/javascript">
+    $(function () {
+        $('.datepicker').datepicker({
+            format: "mm/yyyy",
+            endDate: "Today",
+            startView: 1,
+            minViewMode: 1,
+            language: "es",
+            autoclose: true
+        });
+    });
+  </script>
+  <script>
+    function myFunction() {
+      var input, filter, table, tr, td, i, txtValue;
+      input = document.getElementById("filtro");
+      filter = input.value.toUpperCase();
+      table = document.getElementById("table");
+      tr = table.getElementsByClassName("linea");
+      for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[3];
+        if (td) {
+          txtValue = td.textContent || td.innerText;
+          if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            tr[i].style.display = "";
+          } else {
+            tr[i].style.display = "none";
+          }
+        }       
+      }
+    }
+  </script>
+  <script>
+    function myFunction2() {
+      var input, filter, table, tr, td, i;
+      input = document.getElementById("filtro");
+      input.value="";
+      table = document.getElementById("table");
+      tr = table.getElementsByClassName("linea");
+      for (i = 0; i < tr.length; i++) {
+        td = tr[i].getElementsByTagName("td")[3];
+        if (td) {
+          tr[i].style.display = "";
+        }    
+      }
+    }
+  </script>
 </div>
 {% endblock %}

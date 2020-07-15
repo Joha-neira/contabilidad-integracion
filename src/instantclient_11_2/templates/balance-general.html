@@ -95,6 +95,12 @@
             </tr>
             {% endif %}
             {% endfor %}
+          <tr>
+            <th scope="row">Total</th>
+            {% for total in totales %}
+              <th>{{total}}</th>
+            {% endfor %}
+          </tr>
     </tbody>
   </table>
   {% endif %}
